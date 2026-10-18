@@ -1,0 +1,321 @@
+-- Rexz Hub (MM2) | Delta Executor Script
+-- Premium UI with ESP & Silent Aim
+
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
+local Window = OrionLib:MakeWindow({Name = "Rexz Hub (MM2)", HidePremium = false, SaveConfig = true, ConfigFolder = "RexzHub_MM2"})
+
+-- Variables
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+-- ESP Toggles
+local ESPEnabled = false
+local ESPMurderer = false
+local ESPInnocent = false
+local ESPSheriff = false
+local ESPGun = false
+local SilentAimEnabled = false
+
+-- Silent Aim Target
+local SilentAimTarget = nil
+
+-- Create ESP objects
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "RexzESP"
+ESPFolder.Parent = game:CoreGui
+
+-- UI Elements
+local Tab1 = Window:MakeTab({Name = "ESP", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+local Tab2 = Window:MakeTab({Name = "Aimbot", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+
+-- ESP Tab
+Tab1:AddToggle({
+    Name = "ESP Enabled",
+    Default = false,
+    Callback = function(Value)
+        ESPEnabled = Value
+        if not Value then
+            for _, v in pairs(ESPFolder:GetChildren()) do
+                v:Destroy()
+            end
+        end
+    end
+})
+
+Tab1:AddToggle({
+    Name = "Murderer ESP",
+    Default = false,
+    Callback = function(Value)
+        ESPMurderer = Value
+    end
+})
+
+Tab1:AddToggle({
+    Name = "Innocent ESP",
+    Default = false,
+    Callback = function(Value)
+        ESPInnocent = Value
+    end
+})
+
+Tab1:AddToggle({
+    Name = "Sheriff ESP",
+    Default = false,
+    Callback = function(Value)
+        ESPSheriff = Value
+    end
+})
+
+Tab1:AddToggle({
+    Name = "Gun ESP (When Sheriff Dies)",
+    Default = false,
+    Callback = function(Value)
+        ESPGun = Value
+    end
+})
+
+-- Aimbot Tab
+Tab2:AddToggle({
+    Name = "Silent Aim (Sheriff Only)",
+    Default = false,
+    Callback = function(Value)
+        SilentAimEnabled = Value
+        if not Value then
+            SilentAimTarget = nil
+        end
+    end
+})
+
+-- Create the rise button
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "RexzHubButton"
+ScreenGui.Parent = game:CoreGui
+
+local RiseButton = Instance.new("TextButton")
+RiseButton.Size = UDim2.new(0, 50, 0, 50)
+RiseButton.Position = UDim2.new(1, -60, 0.5, -25)
+RiseButton.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+RiseButton.BackgroundTransparency = 0.1
+RiseButton.Text = "<"
+RiseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+RiseButton.Font = Enum.Font.GothamBold
+RiseButton.TextSize = 24
+RiseButton.BorderSizePixel = 0
+RiseButton.Parent = ScreenGui
+
+-- Add corner radius
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = RiseButton
+
+-- Add shadow
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(255, 0, 0)
+UIStroke.Thickness = 2
+UIStroke.Parent = RiseButton
+
+-- Animation variables
+local isOpen = false
+local animTime = 0
+
+-- Rise animation on click
+RiseButton.MouseButton1Click:Connect(function()
+    isOpen = not isOpen
+    if isOpen then
+        Window:Toggle()
+    else
+        Window:Toggle()
+    end
+    
+    -- Animate button
+    local tween = game:GetService("TweenService"):Create(
+        RiseButton,
+        TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        {Position = UDim2.new(1, isOpen and -60 or -60, 0.5, -25)}
+    )
+    tween:Play()
+end)
+
+-- ESP Functions
+local function getRole(player)
+    local character = player.Character
+    if not character then return "Unknown" end
+    
+    local backpack = player.Backpack
+    if backpack then
+        for _, item in pairs(backpack:GetChildren()) do
+            if item.Name == "Knife" then return "Murderer" end
+            if item.Name == "Gun" then return "Sheriff" end
+        end
+    end
+    
+    if character:FindFirstChild("Knife") then return "Murderer" end
+    if character:FindFirstChild("Gun") then return "Sheriff" end
+    
+    return "Innocent"
+end
+
+local function createESP(player, role)
+    if not player.Character then return end
+    if not player.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local esp = Instance.new("BillboardGui")
+    esp.Name = player.Name .. "_ESP"
+    esp.Size = UDim2.new(0, 150, 0, 40)
+    esp.AlwaysOnTop = true
+    esp.MaxDistance = 1000
+    esp.Adornee = player.Character.HumanoidRootPart
+    esp.Parent = ESPFolder
+    
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    text.BackgroundTransparency = 0.3
+    text.Text = player.Name .. " [" .. role .. "]"
+    text.TextColor3 = role == "Murderer" and Color3.fromRGB(255, 0, 0) or role == "Sheriff" and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+    text.Font = Enum.Font.GothamBold
+    text.TextSize = 14
+    text.TextStrokeTransparency = 0
+    text.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    text.Parent = esp
+    
+    -- Add outline
+    local UIStroke = Instance.new("UIStroke")
+    UIStroke.Color = role == "Murderer" and Color3.fromRGB(255, 0, 0) or role == "Sheriff" and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+    UIStroke.Thickness = 2
+    UIStroke.Parent = text
+    
+    -- Add health bar
+    local healthBar = Instance.new("Frame")
+    healthBar.Size = UDim2.new(1, 0, 0, 5)
+    healthBar.Position = UDim2.new(0, 0, 1, 0)
+    healthBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    healthBar.BorderSizePixel = 0
+    healthBar.Parent = esp
+    
+    local healthFill = Instance.new("Frame")
+    healthFill.Size = UDim2.new(1, 0, 1, 0)
+    healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    healthFill.BorderSizePixel = 0
+    healthFill.Parent = healthBar
+    
+    -- Update health
+    spawn(function()
+        while ESPEnabled and esp.Parent do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                local health = player.Character.Humanoid.Health
+                local maxHealth = player.Character.Humanoid.MaxHealth
+                healthFill.Size = UDim2.new(health / maxHealth, 0, 1, 0)
+            end
+            wait(0.1)
+        end
+    end)
+end
+
+local function updateESP()
+    if not ESPEnabled then return end
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local role = getRole(player)
+            local shouldESP = false
+            
+            if role == "Murderer" and ESPMurderer then shouldESP = true end
+            if role == "Innocent" and ESPInnocent then shouldESP = true end
+            if role == "Sheriff" and ESPSheriff then shouldESP = true end
+            
+            if shouldESP then
+                if not ESPFolder:FindFirstChild(player.Name .. "_ESP") then
+                    createESP(player, role)
+                end
+            else
+                local existing = ESPFolder:FindFirstChild(player.Name .. "_ESP")
+                if existing then existing:Destroy() end
+            end
+        end
+    end
+    
+    -- Gun ESP
+    if ESPGun then
+        for _, v in pairs(workspace:GetChildren()) do
+            if v.Name == "Gun" and not v:FindFirstChild("ESP_Gun") then
+                local gunESP = Instance.new("BillboardGui")
+                gunESP.Name = "ESP_Gun"
+                gunESP.Size = UDim2.new(0, 100, 0, 30)
+                gunESP.AlwaysOnTop = true
+                gunESP.MaxDistance = 500
+                gunESP.Adornee = v
+                gunESP.Parent = v
+                
+                local text = Instance.new("TextLabel")
+                text.Size = UDim2.new(1, 0, 1, 0)
+                text.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+                text.BackgroundTransparency = 0.3
+                text.Text = "🔫 GUN"
+                text.TextColor3 = Color3.fromRGB(255, 255, 0)
+                text.Font = Enum.Font.GothamBold
+                text.TextSize = 14
+                text.TextStrokeTransparency = 0
+                text.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                text.Parent = gunESP
+            end
+        end
+    end
+end
+
+-- Silent Aim (Sheriff Only)
+local function findMurderer()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            if getRole(player) == "Murderer" then
+                return player
+            end
+        end
+    end
+    return nil
+end
+
+-- Main loop for ESP
+spawn(function()
+    while task.wait(0.5) do
+        updateESP()
+    end
+end)
+
+-- Silent Aim Loop
+RunService.RenderStepped:Connect(function()
+    if SilentAimEnabled and getRole(LocalPlayer) == "Sheriff" then
+        local murderer = findMurderer()
+        if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
+            SilentAimTarget = murderer.Character.HumanoidRootPart
+            
+            -- Adjust camera to aim at murderer (silent aim)
+            local gun = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Gun")
+            if gun then
+                local aimPoint = murderer.Character.HumanoidRootPart.Position + Vector3.new(0, 1, 0)
+                local direction = (aimPoint - Camera.CFrame.Position).Unit
+                Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, aimPoint)
+            end
+        end
+    end
+end)
+
+-- Clean up on leave
+game.Players.LocalPlayer.OnTeleport:Connect(function()
+    if ScreenGui then ScreenGui:Destroy() end
+    if ESPFolder then ESPFolder:Destroy() end
+end)
+
+-- Notify
+OrionLib:MakeNotification({
+    Name = "Rexz Hub Loaded!",
+    Content = "Premium MM2 Script Loaded Successfully!",
+    Image = "rbxassetid://4483345998",
+    Time = 5
+})
+
+-- Initial message
+print("Rexz Hub (MM2) Loaded - Premium Features Active")
